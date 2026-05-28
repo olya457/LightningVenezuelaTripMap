@@ -1,32 +1,45 @@
-import React, {useMemo, useState} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import React, {useEffect, useMemo, useState} from 'react';
+import {Platform, Pressable, StyleSheet, Text, View} from 'react-native';
+import MapView, {
+  Marker,
+  PROVIDER_GOOGLE,
+  Region,
+  UrlTile,
+} from 'react-native-maps';
 import {AppScreen} from '../components/AppScreen';
 import {LocationCard} from '../components/LocationCards';
 import {locations} from '../data/locations';
 import {useNavigation} from '../navigation/NavigationContext';
 import {colors} from '../theme';
+import {StormLocation} from '../types';
 
-type Percent = `${number}%`;
-
-const markerPositions: Record<string, {left: Percent; top: Percent}> = {
-  'lake-maracaibo': {left: '18%', top: '34%'},
-  'catatumbo-river-mouth': {left: '13%', top: '38%'},
-  'ologa-village': {left: '28%', top: '42%'},
-  'congo-mirador': {left: '23%', top: '32%'},
-  'sierra-de-perija': {left: '16%', top: '29%'},
-  'merida-andes': {left: '45%', top: '56%'},
-  'henri-pittier-storm': {left: '86%', top: '40%'},
-  'orinoco-river': {left: '60%', top: '72%'},
-  'canaima-national-park': {left: '78%', top: '68%'},
-  'amazon-rainforest': {left: '68%', top: '78%'},
-  'el-avila': {left: '82%', top: '34%'},
+const venezuelaRegion: Region = {
+  latitude: 7.25,
+  longitude: -66.45,
+  latitudeDelta: 8.8,
+  longitudeDelta: 12.5,
 };
 
-const markerColor = {
+const markerColor: Record<StormLocation['markerType'], string> = {
   lightning: colors.blue,
   lake: colors.cyan,
   jungle: '#ad5cff',
 };
+
+const markerEmoji: Record<StormLocation['markerType'], string> = {
+  lightning: '⚡',
+  lake: '🌊',
+  jungle: '🌴',
+};
+
+function regionFor(location: StormLocation): Region {
+  return {
+    latitude: location.coordinates.latitude,
+    longitude: location.coordinates.longitude,
+    latitudeDelta: 1.6,
+    longitudeDelta: 2,
+  };
+}
 
 export function StormMapScreen({
   selectedLocationId,
@@ -34,61 +47,127 @@ export function StormMapScreen({
   selectedLocationId?: string;
 }) {
   const {navigate} = useNavigation();
-  const firstSelected = selectedLocationId
+  const initialLocation = selectedLocationId
     ? locations.find(item => item.id === selectedLocationId)
     : undefined;
-  const [selectedId, setSelectedId] = useState(firstSelected?.id);
-  const [zoom, setZoom] = useState(1);
+  const [selectedId, setSelectedId] = useState(initialLocation?.id);
+  const [region, setRegion] = useState<Region>(
+    initialLocation ? regionFor(initialLocation) : venezuelaRegion,
+  );
   const selected = useMemo(
     () => locations.find(item => item.id === selectedId),
     [selectedId],
   );
 
+  useEffect(() => {
+    if (selectedLocationId) {
+      const nextLocation = locations.find(item => item.id === selectedLocationId);
+      if (nextLocation) {
+        setSelectedId(nextLocation.id);
+        setRegion(regionFor(nextLocation));
+      }
+    }
+  }, [selectedLocationId]);
+
+  const focusLocation = (location: StormLocation) => {
+    setSelectedId(location.id);
+    setRegion(regionFor(location));
+  };
+
+  const zoom = (factor: number) => {
+    setRegion(current => ({
+      ...current,
+      latitudeDelta: Math.max(0.45, Math.min(13, current.latitudeDelta * factor)),
+      longitudeDelta: Math.max(
+        0.55,
+        Math.min(16, current.longitudeDelta * factor),
+      ),
+    }));
+  };
+
+  const resetMap = () => {
+    setSelectedId(undefined);
+    setRegion(venezuelaRegion);
+  };
+
   return (
     <AppScreen eyebrow="Live Storm Tracker" title="Storm Map" scroll={false}>
       <View style={styles.mapCard}>
-        <View style={styles.controls}>
-          <Pressable onPress={() => setZoom(value => Math.min(1.4, value + 0.1))} style={styles.controlButton}>
-            <Text style={styles.controlText}>+</Text>
-          </Pressable>
-          <Pressable onPress={() => setZoom(value => Math.max(0.8, value - 0.1))} style={styles.controlButton}>
-            <Text style={styles.controlText}>−</Text>
-          </Pressable>
-        </View>
-        <View style={[styles.land, {transform: [{scale: zoom}]}]}>
-          <View style={styles.landLineTop} />
-          <View style={styles.landLineMid} />
-          <View style={styles.landLineBottom} />
-          <Text style={styles.country}>VENEZUELA</Text>
-          {locations.slice(0, 16).map(location => {
-            const position = markerPositions[location.id] ?? {
-              left: `${18 + ((location.coordinates.longitude + 73) * 12) % 68}%` as Percent,
-              top: `${24 + ((11 - location.coordinates.latitude) * 10) % 54}%` as Percent,
-            };
+        <MapView
+          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+          style={StyleSheet.absoluteFill}
+          region={region}
+          onRegionChangeComplete={setRegion}
+          mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+          userInterfaceStyle="dark"
+          toolbarEnabled={false}
+          showsCompass
+          rotateEnabled={false}
+          pitchEnabled={false}>
+          {Platform.OS === 'android' ? (
+            <UrlTile
+              urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maximumZ={19}
+              flipY={false}
+            />
+          ) : null}
+          {locations.map(location => {
             const active = selectedId === location.id;
+            const color = markerColor[location.markerType];
+
             return (
-              <Pressable
+              <Marker
                 key={location.id}
-                onPress={() => setSelectedId(location.id)}
-                style={[
-                  styles.marker,
-                  position,
-                  {
-                    backgroundColor: markerColor[location.markerType],
-                    transform: [{scale: active ? 1.35 : 1}],
-                  },
-                ]}>
-                <View style={styles.markerGlow} />
-              </Pressable>
+                coordinate={location.coordinates}
+                title={location.title}
+                description={location.place}
+                onPress={() => focusLocation(location)}>
+                <View
+                  style={[
+                    styles.markerWrap,
+                    active && styles.markerWrapActive,
+                  ]}>
+                  <View style={[styles.markerGlow, {backgroundColor: color}]} />
+                  <View
+                    style={[
+                      styles.markerCore,
+                      {backgroundColor: color},
+                      active && styles.markerCoreActive,
+                    ]}>
+                    <Text style={styles.markerText}>
+                      {markerEmoji[location.markerType]}
+                    </Text>
+                  </View>
+                </View>
+              </Marker>
             );
           })}
+        </MapView>
+        <View pointerEvents="none" style={styles.topShade} />
+        <View style={styles.controls}>
+          <Pressable onPress={() => zoom(0.55)} style={styles.controlButton}>
+            <Text style={styles.controlText}>+</Text>
+          </Pressable>
+          <Pressable onPress={() => zoom(1.65)} style={styles.controlButton}>
+            <Text style={styles.controlText}>−</Text>
+          </Pressable>
+          <Pressable onPress={resetMap} style={styles.controlButton}>
+            <Text style={styles.resetText}>⌂</Text>
+          </Pressable>
         </View>
-        <View style={styles.scale}>
-          <View style={styles.scaleLine} />
-          <Text style={styles.scaleText}>200 km</Text>
+        <View style={styles.legend}>
+          <LegendDot color={colors.blue} label="Lightning Zone" />
+          <LegendDot color={colors.cyan} label="Storm Lake" />
+          <LegendDot color="#ad5cff" label="Jungle Storm" />
         </View>
         {selected ? (
           <View style={styles.selectedCard}>
+            <Pressable
+              hitSlop={12}
+              onPress={() => setSelectedId(undefined)}
+              style={styles.closeButton}>
+              <Text style={styles.closeText}>×</Text>
+            </Pressable>
             <LocationCard
               compact
               location={selected}
@@ -98,11 +177,6 @@ export function StormMapScreen({
             />
           </View>
         ) : null}
-      </View>
-      <View style={styles.legend}>
-        <LegendDot color={colors.blue} label="Lightning Zone" />
-        <LegendDot color={colors.cyan} label="Storm Lake" />
-        <LegendDot color="#ad5cff" label="Jungle Storm" />
       </View>
     </AppScreen>
   );
@@ -120,110 +194,102 @@ function LegendDot({color, label}: {color: string; label: string}) {
 const styles = StyleSheet.create({
   mapCard: {
     flex: 1,
-    minHeight: 460,
+    minHeight: 0,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: '#030916',
     overflow: 'hidden',
   },
+  topShade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 92,
+    backgroundColor: 'rgba(3, 7, 18, 0.18)',
+  },
   controls: {
     position: 'absolute',
     right: 12,
     top: 12,
-    zIndex: 4,
   },
   controlButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.panel,
+    backgroundColor: 'rgba(7, 13, 31, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   controlText: {
     color: '#4f91ff',
+    fontSize: 19,
+    fontWeight: '900',
+  },
+  resetText: {
+    color: '#4f91ff',
     fontSize: 18,
     fontWeight: '900',
   },
-  land: {
-    position: 'absolute',
-    left: '7%',
-    right: '7%',
-    top: '23%',
-    height: '52%',
-    borderRadius: 120,
-    borderWidth: 1,
-    borderColor: 'rgba(45, 117, 255, 0.58)',
-    backgroundColor: 'rgba(13, 41, 82, 0.34)',
+  markerWrap: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  landLineTop: {
-    position: 'absolute',
-    left: '5%',
-    right: '10%',
-    top: '22%',
-    height: 1,
-    backgroundColor: 'rgba(45, 117, 255, 0.22)',
-  },
-  landLineMid: {
-    position: 'absolute',
-    left: '20%',
-    right: '18%',
-    top: '50%',
-    height: 1,
-    backgroundColor: 'rgba(45, 117, 255, 0.16)',
-  },
-  landLineBottom: {
-    position: 'absolute',
-    left: '28%',
-    right: '24%',
-    bottom: '22%',
-    height: 1,
-    backgroundColor: 'rgba(45, 117, 255, 0.16)',
-  },
-  country: {
-    position: 'absolute',
-    left: '38%',
-    top: '46%',
-    color: 'rgba(79, 145, 255, 0.5)',
-    fontWeight: '900',
-    fontSize: 13,
-  },
-  marker: {
-    position: 'absolute',
-    width: 15,
-    height: 15,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(230, 244, 255, 0.45)',
+  markerWrapActive: {
+    transform: [{scale: 1.16}],
   },
   markerGlow: {
     position: 'absolute',
-    left: -10,
-    right: -10,
-    top: -10,
-    bottom: -10,
-    borderRadius: 20,
-    backgroundColor: 'rgba(79, 145, 255, 0.08)',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    opacity: 0.2,
   },
-  scale: {
+  markerCore: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+  },
+  markerCoreActive: {
+    borderColor: colors.text,
+  },
+  markerText: {
+    fontSize: 13,
+  },
+  legend: {
     position: 'absolute',
     left: 12,
-    bottom: 16,
+    top: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(7, 13, 31, 0.88)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginVertical: 3,
   },
-  scaleLine: {
-    width: 48,
-    height: 2,
-    backgroundColor: '#4f91ff',
-    marginRight: 9,
+  legendDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    marginRight: 7,
   },
-  scaleText: {
-    color: colors.dim,
+  legendText: {
+    color: '#b5c4e6',
     fontSize: 11,
     fontWeight: '800',
   },
@@ -232,27 +298,26 @@ const styles = StyleSheet.create({
     left: 10,
     right: 10,
     bottom: 8,
+    paddingTop: 2,
   },
-  legend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 12,
-  },
-  legendItem: {
-    flexDirection: 'row',
+  closeButton: {
+    position: 'absolute',
+    right: 8,
+    top: -10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    zIndex: 3,
     alignItems: 'center',
-    marginRight: 14,
-    marginBottom: 8,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(7, 13, 31, 0.96)',
   },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 7,
-  },
-  legendText: {
-    color: colors.dim,
-    fontSize: 12,
+  closeText: {
+    color: colors.text,
+    fontSize: 22,
+    lineHeight: 24,
     fontWeight: '800',
   },
 });

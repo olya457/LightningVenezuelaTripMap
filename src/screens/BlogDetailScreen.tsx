@@ -7,15 +7,18 @@ import {
   Share,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import {Button} from '../components/Buttons';
 import {getArticle} from '../data/blog';
 import {useNavigation} from '../navigation/NavigationContext';
-import {colors, layout} from '../theme';
+import {colors, getNavigationMetrics, layout} from '../theme';
 
 export function BlogDetailScreen({articleId}: {articleId: string}) {
   const {goBack} = useNavigation();
+  const {width, height} = useWindowDimensions();
+  const metrics = getNavigationMetrics(width, height);
   const article = getArticle(articleId);
 
   if (!article) {
@@ -33,8 +36,13 @@ export function BlogDetailScreen({articleId}: {articleId: string}) {
     <SafeAreaView style={styles.safe}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}>
-        <ImageBackground source={article.image} style={styles.hero}>
+        contentContainerStyle={[
+          styles.content,
+          {paddingBottom: metrics.contentBottom},
+        ]}>
+        <ImageBackground
+          source={article.image}
+          style={[styles.hero, metrics.compact && styles.heroCompact]}>
           <View style={styles.heroShade} />
           <View style={styles.heroActions}>
             <Pressable onPress={() => goBack({name: 'blog'})} style={styles.topButton}>
@@ -45,7 +53,7 @@ export function BlogDetailScreen({articleId}: {articleId: string}) {
             </Pressable>
           </View>
         </ImageBackground>
-        <View style={styles.body}>
+        <View style={[styles.body, {paddingHorizontal: metrics.pageX}]}>
           <View style={styles.tags}>
             {article.tags.map(tag => (
               <View key={tag} style={styles.tag}>
@@ -53,7 +61,9 @@ export function BlogDetailScreen({articleId}: {articleId: string}) {
               </View>
             ))}
           </View>
-          <Text style={styles.title}>{article.title}</Text>
+          <Text style={[styles.title, metrics.compact && styles.titleCompact]}>
+            {article.title}
+          </Text>
           <Text style={styles.meta}>{article.date}   {article.readTime}</Text>
           <View style={styles.divider} />
           {article.body.map(paragraph => (
@@ -78,13 +88,15 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
-    paddingTop: layout.androidInset,
+    paddingTop: layout.androidInset + layout.statusTopGap,
   },
   content: {
-    paddingBottom: layout.tabHeight + layout.tabGap + 30,
   },
   hero: {
     height: 250,
+  },
+  heroCompact: {
+    height: 214,
   },
   heroShade: {
     ...StyleSheet.absoluteFillObject,
@@ -123,7 +135,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   body: {
-    paddingHorizontal: 20,
     marginTop: -22,
   },
   tags: {
@@ -152,6 +163,10 @@ const styles = StyleSheet.create({
     fontSize: 23,
     lineHeight: 30,
     fontWeight: '900',
+  },
+  titleCompact: {
+    fontSize: 21,
+    lineHeight: 27,
   },
   meta: {
     color: colors.cyan,

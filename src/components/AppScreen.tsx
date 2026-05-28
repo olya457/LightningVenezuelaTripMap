@@ -5,9 +5,10 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import {colors, layout} from '../theme';
+import {colors, getNavigationMetrics, layout} from '../theme';
 
 type AppScreenProps = {
   eyebrow?: string;
@@ -24,11 +25,31 @@ export function AppScreen({
   scroll = true,
   noHorizontalPadding = false,
 }: AppScreenProps) {
+  const {width, height} = useWindowDimensions();
+  const metrics = getNavigationMetrics(width, height);
   const contentStyle = [
     styles.content,
+    {
+      paddingHorizontal: noHorizontalPadding ? 0 : metrics.pageX,
+      paddingBottom: metrics.contentBottom,
+    },
     !scroll && styles.fill,
-    noHorizontalPadding && styles.noHorizontalPadding,
   ];
+
+  const header = (eyebrow || title) && (
+    <View style={[styles.header, metrics.compact && styles.headerCompact]}>
+      {eyebrow ? (
+        <Text style={[styles.eyebrow, metrics.compact && styles.eyebrowCompact]}>
+          {eyebrow}
+        </Text>
+      ) : null}
+      {title ? (
+        <Text style={[styles.title, metrics.compact && styles.titleCompact]}>
+          {title}
+        </Text>
+      ) : null}
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -37,22 +58,12 @@ export function AppScreen({
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={contentStyle}>
-          {(eyebrow || title) && (
-            <View style={styles.header}>
-              {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-              {title ? <Text style={styles.title}>{title}</Text> : null}
-            </View>
-          )}
+          {header}
           {children}
         </ScrollView>
       ) : (
         <View style={contentStyle}>
-          {(eyebrow || title) && (
-            <View style={styles.header}>
-              {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-              {title ? <Text style={styles.title}>{title}</Text> : null}
-            </View>
-          )}
+          {header}
           {children}
         </View>
       )}
@@ -64,21 +75,20 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
-    paddingTop: layout.androidInset,
+    paddingTop: layout.androidInset + layout.statusTopGap,
   },
   content: {
-    paddingHorizontal: layout.pageX,
-    paddingBottom: layout.tabHeight + layout.tabGap + 28,
   },
   fill: {
     flex: 1,
   },
-  noHorizontalPadding: {
-    paddingHorizontal: 0,
-  },
   header: {
     marginTop: 14,
     marginBottom: 24,
+  },
+  headerCompact: {
+    marginTop: 8,
+    marginBottom: 16,
   },
   eyebrow: {
     color: colors.cyan,
@@ -87,11 +97,19 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
     textTransform: 'uppercase',
   },
+  eyebrowCompact: {
+    fontSize: 10,
+    letterSpacing: 3,
+  },
   title: {
     color: colors.text,
     fontSize: 28,
     lineHeight: 34,
     fontWeight: '900',
     marginTop: 4,
+  },
+  titleCompact: {
+    fontSize: 24,
+    lineHeight: 29,
   },
 });

@@ -7,17 +7,20 @@ import {
   Share,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import {Button} from '../components/Buttons';
 import {getLocation} from '../data/locations';
 import {useNavigation} from '../navigation/NavigationContext';
 import {useSavedLocations} from '../storage/SavedLocationsContext';
-import {colors, layout} from '../theme';
+import {colors, getNavigationMetrics, layout} from '../theme';
 
 export function LocationDetailScreen({locationId}: {locationId: string}) {
   const {goBack, navigate} = useNavigation();
   const {isSaved, toggleSaved} = useSavedLocations();
+  const {width, height} = useWindowDimensions();
+  const metrics = getNavigationMetrics(width, height);
   const location = getLocation(locationId);
 
   if (!location) {
@@ -37,8 +40,13 @@ export function LocationDetailScreen({locationId}: {locationId: string}) {
     <SafeAreaView style={styles.safe}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}>
-        <ImageBackground source={location.image} style={styles.hero}>
+        contentContainerStyle={[
+          styles.content,
+          {paddingBottom: metrics.contentBottom},
+        ]}>
+        <ImageBackground
+          source={location.image}
+          style={[styles.hero, metrics.compact && styles.heroCompact]}>
           <View style={styles.heroShade} />
           <View style={styles.heroActions}>
             <Pressable onPress={() => goBack({name: 'explore'})} style={styles.topButton}>
@@ -49,7 +57,7 @@ export function LocationDetailScreen({locationId}: {locationId: string}) {
             </Pressable>
           </View>
         </ImageBackground>
-        <View style={styles.body}>
+        <View style={[styles.body, {paddingHorizontal: metrics.pageX}]}>
           <View style={styles.tags}>
             <View style={styles.tag}>
               <Text style={styles.tagText}>{location.tag}</Text>
@@ -58,7 +66,9 @@ export function LocationDetailScreen({locationId}: {locationId: string}) {
               <Text style={styles.tagText}>Natural Wonder</Text>
             </View>
           </View>
-          <Text style={styles.title}>{location.title}</Text>
+          <Text style={[styles.title, metrics.compact && styles.titleCompact]}>
+            {location.title}
+          </Text>
           <Text style={styles.place}>◎ {location.place}</Text>
           <View style={styles.coordinates}>
             <Text style={styles.coordinatesText}>
@@ -98,14 +108,16 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.bg,
-    paddingTop: layout.androidInset,
+    paddingTop: layout.androidInset + layout.statusTopGap,
   },
   content: {
-    paddingBottom: layout.tabHeight + layout.tabGap + 30,
   },
   hero: {
     height: 282,
     justifyContent: 'flex-start',
+  },
+  heroCompact: {
+    height: 236,
   },
   heroShade: {
     ...StyleSheet.absoluteFillObject,
@@ -145,7 +157,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   body: {
-    paddingHorizontal: 20,
     marginTop: -36,
   },
   tags: {
@@ -175,6 +186,10 @@ const styles = StyleSheet.create({
     fontSize: 26,
     lineHeight: 32,
     fontWeight: '900',
+  },
+  titleCompact: {
+    fontSize: 23,
+    lineHeight: 28,
   },
   place: {
     color: colors.dim,

@@ -1,7 +1,14 @@
-import React from 'react';
-import {Image, ImageBackground, StyleSheet, View} from 'react-native';
+import React, {useEffect, useRef} from 'react';
+import {
+  Animated,
+  Easing,
+  ImageBackground,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import {images} from '../assets/images';
-import {colors} from '../theme';
+import {colors, layout} from '../theme';
 
 const stars = Array.from({length: 26}, (_, index) => ({
   id: index,
@@ -11,6 +18,39 @@ const stars = Array.from({length: 26}, (_, index) => ({
 }));
 
 export function SplashScreen() {
+  const pulse = useRef(new Animated.Value(0)).current;
+  const {width, height} = useWindowDimensions();
+  const iconSize = Math.min(Math.min(width, height) * 0.78, 306);
+  const scale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.96, 1.04],
+  });
+  const opacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.86, 1],
+  });
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1150,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1150,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [pulse]);
+
   return (
     <ImageBackground source={images.loaderBackground} style={styles.root}>
       <View style={styles.starLayer}>
@@ -24,7 +64,18 @@ export function SplashScreen() {
           />
         ))}
       </View>
-      <Image source={images.loaderIcon} style={styles.icon} />
+      <Animated.Image
+        source={images.loaderIcon}
+        style={[
+          styles.icon,
+          {
+            width: iconSize,
+            height: iconSize,
+            opacity,
+            transform: [{scale}],
+          },
+        ]}
+      />
     </ImageBackground>
   );
 }
@@ -33,6 +84,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
+    paddingTop: layout.statusTopGap,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -51,9 +103,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#d9ecff',
   },
   icon: {
-    width: '78%',
-    maxWidth: 306,
-    aspectRatio: 1,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(85, 146, 255, 0.28)',
   },
 });

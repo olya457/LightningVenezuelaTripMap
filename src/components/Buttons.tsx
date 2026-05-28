@@ -1,5 +1,5 @@
 import React from 'react';
-import {Pressable, StyleSheet, Text, ViewStyle} from 'react-native';
+import {Pressable, StyleProp, StyleSheet, Text, ViewStyle} from 'react-native';
 import {colors, shadow} from '../theme';
 
 type ButtonProps = {
@@ -8,7 +8,7 @@ type ButtonProps = {
   onPress: () => void;
   variant?: 'primary' | 'ghost' | 'cyan' | 'purple';
   disabled?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 };
 
 export function Button({
