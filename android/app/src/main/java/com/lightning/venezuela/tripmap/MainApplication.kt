@@ -1,4 +1,4 @@
-package com.lightningvenezuelatripmap
+package com.lightning.venezuela.tripmap
 
 import android.app.Application
 import com.facebook.react.PackageList

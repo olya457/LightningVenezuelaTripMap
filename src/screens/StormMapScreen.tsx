@@ -1,11 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Platform, Pressable, StyleSheet, Text, View} from 'react-native';
-import MapView, {
-  Marker,
-  PROVIDER_GOOGLE,
-  Region,
-  UrlTile,
-} from 'react-native-maps';
+import MapView, {Marker, PROVIDER_GOOGLE, Region} from 'react-native-maps';
 import {AppScreen} from '../components/AppScreen';
 import {LocationCard} from '../components/LocationCards';
 import {locations} from '../data/locations';
@@ -98,19 +93,15 @@ export function StormMapScreen({
           style={StyleSheet.absoluteFill}
           region={region}
           onRegionChangeComplete={setRegion}
-          mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+          mapType="standard"
           userInterfaceStyle="dark"
+          loadingEnabled
+          loadingBackgroundColor={colors.bg}
+          loadingIndicatorColor={colors.cyan}
           toolbarEnabled={false}
           showsCompass
           rotateEnabled={false}
           pitchEnabled={false}>
-          {Platform.OS === 'android' ? (
-            <UrlTile
-              urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maximumZ={19}
-              flipY={false}
-            />
-          ) : null}
           {locations.map(location => {
             const active = selectedId === location.id;
             const color = markerColor[location.markerType];
