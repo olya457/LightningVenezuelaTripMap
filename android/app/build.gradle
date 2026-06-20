@@ -77,9 +77,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.lightning.venezuela.tripmap"
+    namespace "com.lightningtrailsvenezuela"
     defaultConfig {
-        applicationId "com.lightning.venezuela.tripmap"
+        applicationId "com.lightningtrailsvenezuela"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
