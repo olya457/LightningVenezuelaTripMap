@@ -1,4 +1,4 @@
-package com.lightningtrailsvenezuela
+package com.lightninglandmarksvenezuela
 
 import android.app.Application
 import com.facebook.react.PackageList

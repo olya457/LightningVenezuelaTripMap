@@ -1,7 +1,7 @@
 import {Platform} from 'react-native';
 
 export const colors = {
-  bg: '#322f50ff',
+  bg: '#1b1468ff',
   bgSoft: '#070b18',
   panel: '#0b1022',
   panelSoft: '#101735',

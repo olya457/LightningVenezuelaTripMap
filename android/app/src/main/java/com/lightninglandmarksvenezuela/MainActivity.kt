@@ -1,4 +1,4 @@
-package com.lightningtrailsvenezuela
+package com.lightninglandmarksvenezuela
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
