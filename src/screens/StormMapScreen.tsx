@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Platform, Pressable, StyleSheet, Text, View} from 'react-native';
 import MapView, {Marker, PROVIDER_GOOGLE, Region} from 'react-native-maps';
 import {AppScreen} from '../components/AppScreen';
@@ -42,57 +42,74 @@ export function StormMapScreen({
   selectedLocationId?: string;
 }) {
   const {navigate} = useNavigation();
-  const initialLocation = selectedLocationId
-    ? locations.find(item => item.id === selectedLocationId)
-    : undefined;
-  const [selectedId, setSelectedId] = useState(initialLocation?.id);
-  const [region, setRegion] = useState<Region>(
-    initialLocation ? regionFor(initialLocation) : venezuelaRegion,
+  const mapRef = useRef<MapView | null>(null);
+  const initialLocation = useMemo(
+    () =>
+      selectedLocationId
+        ? locations.find(item => item.id === selectedLocationId)
+        : undefined,
+    [selectedLocationId],
   );
+  const initialRegion = useMemo(
+    () => (initialLocation ? regionFor(initialLocation) : venezuelaRegion),
+    [initialLocation],
+  );
+  const currentRegionRef = useRef<Region>(initialRegion);
+  const [selectedId, setSelectedId] = useState(initialLocation?.id);
   const selected = useMemo(
     () => locations.find(item => item.id === selectedId),
     [selectedId],
   );
+
+  const moveToRegion = useCallback((nextRegion: Region, duration = 280) => {
+    currentRegionRef.current = nextRegion;
+    mapRef.current?.animateToRegion(nextRegion, duration);
+  }, []);
 
   useEffect(() => {
     if (selectedLocationId) {
       const nextLocation = locations.find(item => item.id === selectedLocationId);
       if (nextLocation) {
         setSelectedId(nextLocation.id);
-        setRegion(regionFor(nextLocation));
+        moveToRegion(regionFor(nextLocation));
       }
     }
-  }, [selectedLocationId]);
+  }, [moveToRegion, selectedLocationId]);
 
-  const focusLocation = (location: StormLocation) => {
+  const focusLocation = useCallback((location: StormLocation) => {
+    const nextRegion = regionFor(location);
     setSelectedId(location.id);
-    setRegion(regionFor(location));
-  };
+    moveToRegion(nextRegion);
+  }, [moveToRegion]);
 
-  const zoom = (factor: number) => {
-    setRegion(current => ({
+  const zoom = useCallback((factor: number) => {
+    const current = currentRegionRef.current;
+    moveToRegion({
       ...current,
       latitudeDelta: Math.max(0.45, Math.min(13, current.latitudeDelta * factor)),
       longitudeDelta: Math.max(
         0.55,
         Math.min(16, current.longitudeDelta * factor),
       ),
-    }));
-  };
+    }, 180);
+  }, [moveToRegion]);
 
-  const resetMap = () => {
+  const resetMap = useCallback(() => {
     setSelectedId(undefined);
-    setRegion(venezuelaRegion);
-  };
+    moveToRegion(venezuelaRegion);
+  }, [moveToRegion]);
 
   return (
     <AppScreen eyebrow="Live Storm Tracker" title="Storm Map" scroll={false}>
       <View style={styles.mapCard}>
         <MapView
+          ref={mapRef}
           provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
           style={StyleSheet.absoluteFill}
-          region={region}
-          onRegionChangeComplete={setRegion}
+          initialRegion={initialRegion}
+          onRegionChangeComplete={nextRegion => {
+            currentRegionRef.current = nextRegion;
+          }}
           mapType="standard"
           userInterfaceStyle="dark"
           loadingEnabled
@@ -102,37 +119,14 @@ export function StormMapScreen({
           showsCompass
           rotateEnabled={false}
           pitchEnabled={false}>
-          {locations.map(location => {
-            const active = selectedId === location.id;
-            const color = markerColor[location.markerType];
-
-            return (
-              <Marker
-                key={location.id}
-                coordinate={location.coordinates}
-                title={location.title}
-                description={location.place}
-                onPress={() => focusLocation(location)}>
-                <View
-                  style={[
-                    styles.markerWrap,
-                    active && styles.markerWrapActive,
-                  ]}>
-                  <View style={[styles.markerGlow, {backgroundColor: color}]} />
-                  <View
-                    style={[
-                      styles.markerCore,
-                      {backgroundColor: color},
-                      active && styles.markerCoreActive,
-                    ]}>
-                    <Text style={styles.markerText}>
-                      {markerEmoji[location.markerType]}
-                    </Text>
-                  </View>
-                </View>
-              </Marker>
-            );
-          })}
+          {locations.map(location => (
+            <StormMarker
+              key={location.id}
+              active={selectedId === location.id}
+              location={location}
+              onPress={focusLocation}
+            />
+          ))}
         </MapView>
         <View pointerEvents="none" style={styles.topShade} />
         <View style={styles.controls}>
@@ -181,6 +175,61 @@ function LegendDot({color, label}: {color: string; label: string}) {
     </View>
   );
 }
+
+const StormMarker = React.memo(function StormMarker({
+  active,
+  location,
+  onPress,
+}: {
+  active: boolean;
+  location: StormLocation;
+  onPress: (location: StormLocation) => void;
+}) {
+  const [tracksViewChanges, setTracksViewChanges] = useState(
+    Platform.OS === 'android',
+  );
+  const color = markerColor[location.markerType];
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    setTracksViewChanges(true);
+    const timeout = setTimeout(() => setTracksViewChanges(false), 250);
+
+    return () => clearTimeout(timeout);
+  }, [active]);
+
+  const handlePress = useCallback(() => {
+    onPress(location);
+  }, [location, onPress]);
+
+  return (
+    <Marker
+      coordinate={location.coordinates}
+      title={location.title}
+      description={location.place}
+      onPress={handlePress}
+      tracksViewChanges={
+        Platform.OS === 'android' ? tracksViewChanges : undefined
+      }>
+      <View style={[styles.markerWrap, active && styles.markerWrapActive]}>
+        <View style={[styles.markerGlow, {backgroundColor: color}]} />
+        <View
+          style={[
+            styles.markerCore,
+            {backgroundColor: color},
+            active && styles.markerCoreActive,
+          ]}>
+          <Text style={styles.markerText}>
+            {markerEmoji[location.markerType]}
+          </Text>
+        </View>
+      </View>
+    </Marker>
+  );
+});
 
 const styles = StyleSheet.create({
   mapCard: {
